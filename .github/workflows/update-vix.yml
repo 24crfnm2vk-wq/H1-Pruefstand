@@ -1,0 +1,141 @@
+name: Marktkompass VIX aktualisieren
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20 23 * * 1-5"
+      timezone: "Europe/Berlin"
+
+permissions:
+  contents: write
+
+jobs:
+  update-vix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: VIX-Daten abrufen und prüfen
+        shell: python
+        run: |
+          import csv, io, urllib.request
+          from datetime import date, datetime, timedelta
+          from pathlib import Path
+
+          url = "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+          target = Path("data/market-data/vix_daily_clean.csv")
+
+          req = urllib.request.Request(
+              url,
+              headers={"User-Agent": "Mozilla/5.0 Marktkompass"}
+          )
+
+          with urllib.request.urlopen(req, timeout=30) as r:
+              raw = r.read().decode("utf-8-sig")
+
+          reader = csv.DictReader(io.StringIO(raw))
+
+          if not reader.fieldnames:
+              raise RuntimeError("Cboe-Datei enthält keine Kopfzeile.")
+
+          date_key = next(
+              (k for k in reader.fieldnames if k.strip().lower() == "date"),
+              None
+          )
+          close_key = next(
+              (k for k in reader.fieldnames if k.strip().lower() == "close"),
+              None
+          )
+
+          if not date_key or not close_key:
+              raise RuntimeError("Spalten Date/Close fehlen.")
+
+          rows = []
+
+          for row in reader:
+              try:
+                  try:
+                      d = datetime.strptime(
+                          row[date_key].strip(), "%m/%d/%Y"
+                      ).date()
+                  except ValueError:
+                      d = datetime.strptime(
+                          row[date_key].strip(), "%Y-%m-%d"
+                      ).date()
+
+                  c = float(row[close_key])
+
+                  if c > 0:
+                      rows.append((d, c))
+
+              except (ValueError, TypeError):
+                  continue
+
+          if not rows:
+              raise RuntimeError("Keine gültigen VIX-Daten gefunden.")
+
+          rows.sort()
+
+          latest_date, latest_close = rows[-1]
+
+          if latest_date < date.today() - timedelta(days=7):
+              raise RuntimeError(
+                  f"VIX-Daten wirken veraltet: {latest_date}"
+              )
+
+          existing = {}
+
+          if target.exists():
+              with target.open(encoding="utf-8") as f:
+                  for row in csv.DictReader(f, delimiter=";"):
+                      try:
+                          d = datetime.strptime(
+                              row["date"], "%Y-%m-%d"
+                          ).date()
+                          existing[d] = float(row["close"])
+                      except Exception:
+                          pass
+
+          for d, c in rows:
+              existing[d] = c
+
+          target.parent.mkdir(parents=True, exist_ok=True)
+
+          with target.open(
+              "w", encoding="utf-8", newline=""
+          ) as f:
+              writer = csv.writer(f, delimiter=";")
+              writer.writerow(["date", "close"])
+
+              for d in sorted(existing):
+                  writer.writerow([
+                      d.isoformat(),
+                      f"{existing[d]:.4f}"
+                  ])
+
+          print(
+              f"VIX letzter Wert: "
+              f"{latest_date} / {latest_close:.4f}"
+          )
+
+          print(
+              f"Gesamtdatensätze: {len(existing)}"
+          )
+
+      - name: Dateiformat prüfen
+        run: git diff --check
+
+      - name: Änderungen committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/market-data/vix_daily_clean.csv
+
+          if git diff --cached --quiet; then
+            echo "Keine Änderung."
+          else
+            git commit -m "Automatische VIX-Aktualisierung"
+            git push
+          fi
