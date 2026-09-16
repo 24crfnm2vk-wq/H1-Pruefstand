@@ -105,7 +105,7 @@ jobs:
           with target.open(
               "w", encoding="utf-8", newline=""
           ) as f:
-              writer = csv.writer(f, delimiter=";")
+              writer = csv.writer(f, delimiter=";", lineterminator="\n")
               writer.writerow(["date", "close"])
 
               for d in sorted(existing):
