@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Marktkompass – globale Marktbeobachtung auf Basis von MSCI ACWI und VIX.">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Marktkompass</title>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;background:#f5f7f9;color:#222;padding:20px}
+    .card{max-width:760px;margin:0 auto;background:#fff;padding:24px;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    h1{margin-top:0}.intro{color:#555}
+    button{padding:12px 18px;border:0;border-radius:8px;background:#222;color:#fff;font-size:16px;cursor:pointer}
+    #status{margin-top:20px;line-height:1.5}
+    .note{margin-top:22px;color:#666;font-size:13px}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>🧭 Marktkompass</h1>
+    <p class="intro">Globale Marktbeobachtung auf Basis von MSCI ACWI und VIX.</p>
+    <button id="startButton" type="button">Marktkompass starten</button>
+    <div id="status">Bereit</div>
+    <div class="note">Informations- und Beobachtungsinstrument; kein Kauf- oder Verkaufssignal.</div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
